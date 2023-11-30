@@ -1,0 +1,419 @@
+
+DATA grid1 TYPE REF TO cl_gui_alv_grid.
+DATA: es_row_no TYPE lvc_s_roid,
+     ls_row_id  TYPE lvc_s_row,
+     ls_col_id TYPE  lvc_s_col,
+     ls_row    TYPE i,
+     ls_value  TYPE c,
+     ls_col    TYPE i,
+     ls_row_no  TYPE lvc_s_roid.
+types: row_table type table of lvc_s_roid.
+data t_rows type row_table.
+
+data: begin of wa_rows,
+        ROW_ID  type int4,
+        SUB_ROW_ID type int4,
+      end of wa_rows.
+
+data: t_index  type int4.
+data: t_size  type int4.
+CLASS lcl_event_handler DEFINITION .
+  PUBLIC SECTION .
+    METHODS:
+**Hot spot Handler
+    handle_hotspot_click FOR EVENT hotspot_click OF cl_gui_alv_grid
+                      IMPORTING e_row_id e_column_id es_row_no,
+**Double Click Handler
+    handle_double_click FOR EVENT double_click OF cl_gui_alv_grid
+                                    IMPORTING e_row e_column es_row_no,
+** Toolbar handler.
+ handle_toolbar
+        FOR EVENT toolbar OF cl_gui_alv_grid
+            IMPORTING e_object e_interactive,
+* button press
+    handle_user_command
+        FOR EVENT user_command OF cl_gui_alv_grid
+            IMPORTING e_ucomm,
+* data changed
+ handle_data_changed
+    for event data_changed of cl_gui_alv_grid
+      importing er_data_changed,
+*data changed finished
+ handle_data_changed_finished
+     for event data_changed of cl_gui_alv_grid.
+
+
+ENDCLASS.                    "lcl_event_handler DEFINITION
+
+
+CLASS lcl_event_handler IMPLEMENTATION.
+
+*Handle Hotspot Click
+  METHOD handle_hotspot_click .
+    PERFORM mouse_click
+      USING e_row_id
+            e_column_id.
+    CALL METHOD grid1->get_current_cell
+       IMPORTING
+         e_row     = ls_row
+         e_value   = ls_value
+         e_col     = ls_col
+         es_row_id = ls_row_id
+        es_col_id = ls_col_id
+        es_row_no = es_row_no.
+
+
+    CALL METHOD grid1->refresh_table_display.
+    CALL METHOD grid1->set_current_cell_via_id
+
+  EXPORTING
+    is_column_id =  e_column_id
+    is_row_no  =  es_row_no.
+
+
+
+  ENDMETHOD.                    "lcl_event_handler
+
+*Handle Double Click
+  METHOD  handle_double_click.
+
+    PERFORM double_click
+       USING e_row
+       e_column.
+
+    CALL METHOD grid1->get_current_cell
+    IMPORTING
+    e_row     = ls_row
+    e_value   = ls_value
+    e_col     = ls_col
+    es_row_id = ls_row_id
+   es_col_id = ls_col_id
+   es_row_no = es_row_no.
+
+    CALL METHOD grid1->refresh_table_display.
+
+    CALL METHOD grid1->set_current_cell_via_id
+
+  EXPORTING
+    is_column_id =  ls_col_id
+    is_row_no  =  es_row_no.
+
+
+
+  ENDMETHOD.
+
+  METHOD handle_toolbar.
+    DATA: ls_toolbar  TYPE stb_button.
+* append a separator to normal toolbar
+    CLEAR ls_toolbar.
+    MOVE 3 TO ls_toolbar-butn_type.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+* append an icon for your function
+    CLEAR ls_toolbar.
+    MOVE 'FUNC' TO ls_toolbar-function.
+    MOVE icon_railway TO ls_toolbar-icon.
+    MOVE 'Your Function' TO ls_toolbar-quickinfo.
+    MOVE 'Your user function' TO ls_toolbar-text.
+    MOVE ' ' TO ls_toolbar-disabled.
+    APPEND ls_toolbar TO e_object->mt_toolbar.
+* Select All Rows
+   Move 'SELE' to ls_toolbar-function.
+   move icon_select_all to ls_toolbar-icon.
+   move 'Select all' to ls_toolbar-quickinfo.
+   MOVE 'Select entire Grid' TO ls_toolbar-text.
+   MOVE ' ' TO ls_toolbar-disabled.
+   APPEND ls_toolbar TO e_object->mt_toolbar.
+
+* Deselect all Rows.
+ Move 'DSEL' to ls_toolbar-function.
+   move icon_deselect_all to ls_toolbar-icon.
+   move 'Deselect all' to ls_toolbar-quickinfo.
+   MOVE 'Deselect entire Grid' TO ls_toolbar-text.
+   MOVE ' ' TO ls_toolbar-disabled.
+   APPEND ls_toolbar TO e_object->mt_toolbar.
+
+  ENDMETHOD.
+  METHOD handle_user_command.
+    BREAK-POINT 1.
+    CASE e_ucomm.
+      WHEN 'FUNC'.    "Your button
+* Perform what you need to do.
+When 'SELE'.
+ perform select_all_rows.
+When 'DSEL'.
+ perform deselect_all_rows.
+
+      WHEN OTHERS.
+    ENDCASE.
+  ENDMETHOD.
+
+  method handle_data_changed.
+  perform data_changed using er_data_changed.
+
+  endmethod.                    "data_changed
+
+  method handle_data_changed_finished.
+    perform data_changed_finished.
+  endmethod.                    "data_changed_finished
+
+ENDCLASS.
+
+* Define any structure
+TYPES:  BEGIN OF s_elements,
+  vbeln   TYPE vapma-vbeln,
+  posnr   TYPE vapma-posnr,
+  matnr   TYPE vapma-matnr,
+  kunnr   TYPE vapma-kunnr,
+  werks   TYPE vapma-werks,
+  vkorg   TYPE vapma-vkorg,
+  vkbur   TYPE vapma-vkbur,
+  status  TYPE c,
+
+END OF  s_elements.
+
+* end of your structure
+DATA:wa_elements TYPE s_elements.
+DATA: ord_nr TYPE vapma-vbeln,
+      mat_nr TYPE vapma-matnr,
+      cus_nr TYPE vapma-kunnr.
+
+
+DATA lr_rtti_struc TYPE REF TO cl_abap_structdescr .
+DATA:
+    zog                     LIKE LINE OF lr_rtti_struc->components .
+DATA:
+  zogt                    LIKE TABLE OF zog,
+wa_it_fldcat TYPE lvc_s_fcat,
+it_fldcat TYPE lvc_t_fcat ,
+dy_line            TYPE REF TO data,
+dy_table           TYPE REF TO data.
+
+
+DATA:  dref               TYPE REF TO data.
+
+FIELD-SYMBOLS: <fs> TYPE ANY,
+   <dyn_table>    TYPE  STANDARD TABLE,
+   <dyn_wa>.
+
+DATA grid_container1 TYPE REF TO cl_gui_custom_container .
+DATA grid_container2 type ref to cl_gui_custom_container.
+DATA: g_handler TYPE REF TO lcl_event_handler. "handler
+
+DATA: ok_code TYPE sy-ucomm.
+DATA: struct_grid_lset TYPE lvc_s_layo.
+START-OF-SELECTION.
+*build the field catalog for dynamic table
+* First get your data structure into a field symbol
+
+  CREATE DATA dref TYPE s_elements.
+  ASSIGN dref->* TO <fs>.
+
+  lr_rtti_struc ?= cl_abap_structdescr=>describe_by_data( <fs> ).
+
+* Now get the structure details into a table.
+* table zogt[] contains the structure details
+* From which we can build the field catalog
+
+  zogt[]  = lr_rtti_struc->components.
+  LOOP AT zogt INTO zog.
+    CLEAR wa_it_fldcat.
+    wa_it_fldcat-fieldname = zog-name .
+    wa_it_fldcat-datatype = zog-type_kind.
+    wa_it_fldcat-inttype = zog-type_kind.
+    wa_it_fldcat-intlen = zog-length.
+    wa_it_fldcat-decimals = zog-decimals.
+    wa_it_fldcat-coltext = zog-name.
+    wa_it_fldcat-lowercase = 'X'.
+    IF wa_it_fldcat-fieldname = 'VBELN'.
+      wa_it_fldcat-hotspot = 'X'.
+    ENDIF.
+    APPEND wa_it_fldcat TO it_fldcat.
+
+  ENDLOOP.
+*
+* You can perform any modifications / additions to your field catalog
+* here such as your own column names etc.
+
+* Now using the field catalog created above we can
+* build a dynamic table
+* and populate it
+
+* First build the dynamic table
+* the table will contain entries for
+* our structure defined at the start of the program
+
+  CALL METHOD cl_alv_table_create=>create_dynamic_table
+         EXPORTING
+              it_fieldcatalog = it_fldcat
+         IMPORTING
+              ep_table = dy_table.
+
+
+  ASSIGN dy_table->* TO <dyn_table>.
+  CREATE DATA dy_line LIKE LINE OF <dyn_table>.
+  ASSIGN dy_line->* TO <dyn_wa>.
+
+* Now fill our table with data
+
+  SELECT vbeln posnr matnr kunnr werks vkorg vkbur
+         UP TO 200 ROWS
+         FROM vapma
+         INTO  CORRESPONDING FIELDS OF TABLE <dyn_table>.
+
+* Call the screen to display the grid
+  CALL SCREEN 100.
+
+
+form select_all_rows.
+describe table <dyn_table> lines t_size.
+t_index = 1.
+while t_index le t_size.
+clear wa_rows.
+wa_rows-row_id = t_index.
+append wa_rows to t_rows.
+t_index = t_index + 1.
+endwhile.
+call method grid1->set_selected_rows
+ exporting
+   it_row_no = t_rows.
+endform.
+
+
+form deselect_all_rows.
+describe table <dyn_table> lines t_size.
+t_index = 1.
+refresh t_rows.
+clear wa_rows.
+wa_rows-row_id = t_index.
+append wa_rows to t_rows.
+call method grid1->set_selected_rows
+ exporting
+   it_row_no = t_rows.
+endform.
+
+
+FORM double_click
+USING e_row   TYPE lvc_s_row
+e_column      TYPE lvc_s_col.
+  READ TABLE <dyn_table> INDEX e_row INTO wa_elements.
+
+  CASE e_column-fieldname.
+    WHEN 'MATNR'.
+      mat_nr = wa_elements-matnr.
+      SET PARAMETER ID 'MAT'  FIELD mat_nr.
+      CALL TRANSACTION  'MM03' AND SKIP FIRST SCREEN.
+    WHEN 'KUNNR'.
+      cus_nr = wa_elements-kunnr.
+      SET PARAMETER ID 'KUN'  FIELD cus_nr.
+      CALL TRANSACTION  'XD03' AND SKIP FIRST SCREEN.
+    WHEN OTHERS.
+  ENDCASE.
+  wa_elements-status = 'V'.
+  MODIFY <dyn_table> FROM wa_elements INDEX e_row.
+
+ENDFORM.
+
+FORM mouse_click
+  USING e_row TYPE lvc_s_row
+        e_column_id TYPE  lvc_s_col.
+  READ TABLE <dyn_table> INDEX e_row INTO wa_elements.
+
+
+  ord_nr = wa_elements-vbeln.
+  SET PARAMETER ID 'AUN'  FIELD ord_nr.
+
+  CALL TRANSACTION  'VA03' AND SKIP FIRST SCREEN.
+  wa_elements-status = 'V'.
+  MODIFY <dyn_table> FROM wa_elements INDEX e_row.
+
+ENDFORM.
+
+form data_changed
+  using er_data_changed.
+
+  break-point 1.
+endform.
+form data_changed_finished.
+
+
+  break-point 1.
+endform.
+
+
+form instantiate_grid
+
+
+
+   using  grid_container  type REF TO cl_gui_custom_container
+          class_object  type ref to cl_gui_alv_grid
+          container_name type SCRFNAME.
+
+      data: lt_exclude type ui_functions,
+      ls_exclude type ui_func.
+
+
+          CREATE OBJECT grid_container
+              EXPORTING
+                container_name = container_name.
+       CREATE OBJECT  class_object
+       EXPORTING
+          i_parent = grid_container.
+
+         struct_grid_lset-sel_mode = 'D'.
+
+
+   ls_exclude = cl_gui_alv_grid=>mc_fc_sum.
+    append ls_exclude to lt_exclude.
+
+struct_grid_lset-edit =  'X'.
+
+  CREATE OBJECT g_handler.
+  SET HANDLER g_handler->handle_double_click FOR class_object.
+  SET HANDLER g_handler->handle_hotspot_click FOR class_object.
+  SET HANDLER g_handler->handle_toolbar FOR class_object.
+  SET HANDLER g_handler->handle_user_command FOR class_object.
+  SET HANDLER g_handler->handle_data_changed FOR class_object.
+  SET HANDLER g_handler->handle_data_changed_finished FOR class_object.
+  CALL METHOD class_object->register_edit_event
+       EXPORTING
+          i_event_id = cl_gui_alv_grid=>mc_evt_enter.
+       CALL METHOD class_object->set_table_for_first_display
+    EXPORTING is_layout =  struct_grid_lset
+              it_toolbar_excluding  = lt_exclude
+    CHANGING
+               it_outtab       = <dyn_table>
+               it_fieldcatalog = it_fldcat.
+
+endform.
+
+
+* PBO module
+
+MODULE status_0100 OUTPUT.
+
+    IF grid_container1 IS INITIAL.
+  perform instantiate_grid
+     using grid_container1
+           grid1
+           'CCONTAINER1'.
+     endif.
+
+
+    SET PF-STATUS '001'.
+  SET TITLEBAR '000'.
+
+ENDMODULE.
+
+* PAI module
+
+MODULE user_command_0100 INPUT.
+  CASE sy-ucomm.
+    WHEN 'BACK'.
+      LEAVE PROGRAM.
+    WHEN 'EXIT'.
+      LEAVE PROGRAM.
+    WHEN 'RETURN'.
+      LEAVE PROGRAM.
+    WHEN OTHERS.
+  ENDCASE.
+ENDMODULE.
